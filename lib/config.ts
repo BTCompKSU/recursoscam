@@ -5,17 +5,32 @@ export const WORKFLOW_ID =
 
 export const CREATE_SESSION_ENDPOINT = "/api/create-session";
 
+// Starter buttons that show on the empty screen
 export const STARTER_PROMPTS: StartScreenPrompt[] = [
   {
-    label: "What can you do?",
-    prompt: "What can you do?",
+    label: "Social services / Servicios sociales",
+    prompt: "I am in Guatemala and need help finding social services.",
     icon: "circle-question",
+  },
+  {
+    label: "Legal help / Ayuda legal",
+    prompt: "I need legal help related to migration.",
+    icon: "scale-balanced",
+  },
+  {
+    label: "Financial help / Ayuda financiera",
+    prompt: "I need information about financial or economic support.",
+    icon: "money-bill",
   },
 ];
 
-export const PLACEHOLDER_INPUT = "Ask anything...";
+// Text in the input box before the user types
+export const PLACEHOLDER_INPUT =
+  "Type or write your question here / Escribe tu pregunta aquí…";
 
-export const GREETING = "How can I help you today?";
+// Big heading text at the top of the empty chat
+export const GREETING =
+  "Hola, soy el asistente de RecursosCAM. / Hi, I’m the RecursosCAM assistant. Ask me your question about social, legal, or financial services and I will look for options that match your situation.";
 
 export const getThemeConfig = (theme: ColorScheme): ThemeOption => ({
   color: {
@@ -30,6 +45,4 @@ export const getThemeConfig = (theme: ColorScheme): ThemeOption => ({
     },
   },
   radius: "round",
-  // Add other theme options here
-  // chatkit.studio/playground to explore config options
 });
