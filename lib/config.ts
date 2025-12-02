@@ -46,7 +46,7 @@ export const getThemeConfig = (theme: ColorScheme): ThemeOption => ({
   },
   radius: "round",
 
- // Add this block to remove bold styling
+  // Add this block to remove bold styling
   startScreen: {
     header: {
       fontWeight: 400 // normal weight
