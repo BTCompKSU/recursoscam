@@ -30,7 +30,7 @@ export const PLACEHOLDER_INPUT =
 
 // Big heading text at the top of the empty chat
 export const GREETING =
-  "Welcome! / ¡Bienvenido! - How can I help you today? ¿En qué puedo ayudarte hoy?";
+  "Welcome! / ¡Bienvenido! -- How can I help you today? ¿En qué puedo ayudarte hoy?";
 
 export const getThemeConfig = (theme: ColorScheme): ThemeOption => ({
   color: {
