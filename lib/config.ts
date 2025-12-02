@@ -9,7 +9,7 @@ export const CREATE_SESSION_ENDPOINT = "/api/create-session";
 export const STARTER_PROMPTS: StartScreenPrompt[] = [
   {
     label: "Social services / Servicios sociales",
-    prompt: "I am in Guatemala and need help finding social services.",
+    prompt: "I am in need help finding social services.",
     icon: "circle-question",
   },
   {
@@ -45,4 +45,12 @@ export const getThemeConfig = (theme: ColorScheme): ThemeOption => ({
     },
   },
   radius: "round",
+});
+
+ // Add this block to remove bold styling
+  startScreen: {
+    header: {
+      fontWeight: 400 // normal weight
+    }
+  }
 });
