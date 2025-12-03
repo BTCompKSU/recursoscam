@@ -1,38 +1,47 @@
 // app/api/whisper/route.ts
+import { NextResponse } from "next/server";
 import OpenAI from "openai";
 
-const client = new OpenAI({
+const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-export const runtime = "edge"; // optional
+// Ensure we’re on the Node runtime for file handling
+export const runtime = "nodejs";
 
 export async function POST(req: Request) {
   try {
     const formData = await req.formData();
-    const file = formData.get("audio") as File | null;
+
+    // Our hook sends field name "file"
+    // but we also gracefully accept "audio" if that ever changes
+    const file =
+      (formData.get("file") || formData.get("audio")) as File | null;
 
     if (!file) {
-      return new Response(
-        JSON.stringify({ error: "No audio file provided" }),
-        { status: 400, headers: { "Content-Type": "application/json" } }
+      // Helpful logging for debugging
+      console.error(
+        "Whisper route: no file found. FormData keys:",
+        Array.from(formData.keys())
+      );
+      return NextResponse.json(
+        { error: "No audio file provided" },
+        { status: 400 }
       );
     }
 
-    const transcription = await client.audio.transcriptions.create({
-      model: "whisper-1",
+    // New OpenAI client supports File directly
+    const transcription = await openai.audio.transcriptions.create({
+      model: "gpt-4o-mini-transcribe", // or "whisper-1" if you prefer
       file,
     });
 
-    return new Response(
-      JSON.stringify({ text: transcription.text }),
-      { status: 200, headers: { "Content-Type": "application/json" } }
-    );
+    return NextResponse.json({ text: transcription.text ?? "" });
   } catch (err) {
-    console.error("Whisper error:", err);
-    return new Response(
-      JSON.stringify({ error: "Transcription failed" }),
-      { status: 500, headers: { "Content-Type": "application/json" } }
+    console.error("Whisper route error:", err);
+    return NextResponse.json(
+      { error: "Transcription failed" },
+      { status: 500 }
     );
   }
 }
