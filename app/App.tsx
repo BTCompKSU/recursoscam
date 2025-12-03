@@ -21,44 +21,51 @@ export default function App() {
     }
   }, []);
 
+  // Push transcribed text into ChatKit and "press Enter"
   const sendIntoChatKit = useCallback((text: string) => {
-    console.log("sendIntoChatKit called with:", text);
+    const attemptSend = (attempt: number) => {
+      const doc = document;
 
-    const doc = document;
+      const el =
+        (doc.querySelector(
+          '[placeholder*="Type or write your question here"]'
+        ) as HTMLInputElement | HTMLTextAreaElement | null) ||
+        (doc.querySelector(
+          '[placeholder*="Ask anything"]'
+        ) as HTMLInputElement | HTMLTextAreaElement | null) ||
+        (doc.querySelector("textarea") as HTMLTextAreaElement | null) ||
+        (doc.querySelector('input[type="text"]') as HTMLInputElement | null) ||
+        (doc.querySelector('[contenteditable="true"]') as HTMLElement | null);
 
-    const el =
-      (doc.querySelector(
-        '[placeholder*="Type or write your question here"]'
-      ) as HTMLInputElement | HTMLTextAreaElement | null) ||
-      (doc.querySelector(
-        '[placeholder*="Ask anything"]'
-      ) as HTMLInputElement | HTMLTextAreaElement | null) ||
-      (doc.querySelector("textarea") as HTMLTextAreaElement | null) ||
-      (doc.querySelector('input[type="text"]') as HTMLInputElement | null) ||
-      (doc.querySelector('[contenteditable="true"]') as HTMLElement | null);
+      // If the input is not ready yet, retry a few times with a short delay
+      if (!el) {
+        if (attempt < 10) {
+          setTimeout(() => attemptSend(attempt + 1), 100);
+        }
+        return;
+      }
 
-    if (!el) {
-      console.warn("sendIntoChatKit: input element not found");
-      return;
-    }
+      // Set the value depending on element type
+      if ("value" in el) {
+        (el as HTMLInputElement | HTMLTextAreaElement).value = text;
+      } else {
+        el.textContent = text;
+      }
 
-    // Set value depending on element type
-    if ("value" in el) {
-      (el as HTMLInputElement | HTMLTextAreaElement).value = text;
-    } else {
-      el.textContent = text;
-    }
+      // Trigger React's change handling
+      el.dispatchEvent(new Event("input", { bubbles: true }));
 
-    // Trigger React's change handling
-    el.dispatchEvent(new Event("input", { bubbles: true }));
+      // Simulate pressing Enter to send the message
+      const enterEvent = new KeyboardEvent("keydown", {
+        key: "Enter",
+        code: "Enter",
+        bubbles: true,
+      });
+      el.dispatchEvent(enterEvent);
+    };
 
-    // Simulate pressing Enter to send the message
-    const enterEvent = new KeyboardEvent("keydown", {
-      key: "Enter",
-      code: "Enter",
-      bubbles: true,
-    });
-    el.dispatchEvent(enterEvent);
+    // Kick off the first attempt immediately
+    attemptSend(0);
   }, []);
 
   const { isRecording, isTranscribing, startRecording, stopRecording } =
