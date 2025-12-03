@@ -4,7 +4,6 @@ import { useCallback } from "react";
 import { ChatKitPanel, type FactAction } from "@/components/ChatKitPanel";
 import { useColorScheme } from "@/hooks/useColorScheme";
 import { useWhisperRecorder } from "@/components/useWhisperRecorder";
-import { PLACEHOLDER_INPUT } from "@/lib/config"; // this is your "Ask anything..." placeholder
 
 export default function App() {
   const { scheme, setScheme } = useColorScheme();
@@ -24,9 +23,9 @@ export default function App() {
   // Whisper hook: speak & send
   const { isRecording, isTranscribing, startRecording, stopRecording } =
     useWhisperRecorder((text) => {
-      // Find the ChatKit input textarea by its placeholder
+      // Match the beginning of your placeholder so minor changes don't break it
       const textarea = document.querySelector(
-        `textarea[placeholder="${PLACEHOLDER_INPUT}"]`
+        'textarea[placeholder^="Type or write your question here"]'
       ) as HTMLTextAreaElement | null;
 
       if (!textarea) {
@@ -34,11 +33,10 @@ export default function App() {
         return;
       }
 
-      // Set the text value
       textarea.value = text;
       textarea.dispatchEvent(new Event("input", { bubbles: true }));
 
-      // Fire Enter key to submit (speak & send)
+      // Fire Enter key to submit
       const enterEvent = new KeyboardEvent("keydown", {
         key: "Enter",
         code: "Enter",
@@ -73,7 +71,7 @@ export default function App() {
             ? "Transcribing..."
             : isRecording
             ? "Stop"
-            : "🎤 Talk/Hablar"}
+            : "🎤 Talk / Hablar"}
         </button>
       </div>
     </main>
