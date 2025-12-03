@@ -1,3 +1,4 @@
+// components/useWhisperRecorder.ts
 "use client";
 
 import { useState, useRef, useCallback } from "react";
@@ -9,10 +10,6 @@ type UseWhisperRecorderReturn = {
   stopRecording: () => void;
 };
 
-// Silence detection tuning
-const SILENCE_THRESHOLD = 0.03; // bigger = more sensitive to noise
-const SILENCE_DURATION_MS = 2000; // ms of quiet before auto-stop
-
 export function useWhisperRecorder(
   onTranscription: (text: string) => void
 ): UseWhisperRecorderReturn {
@@ -20,7 +17,7 @@ export function useWhisperRecorder(
   const [isTranscribing, setIsTranscribing] = useState(false);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const chunksRef = useRef<BlobPart[]>([]);
+  const audioChunksRef = useRef<BlobPart[]>([]);
 
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
@@ -41,43 +38,49 @@ export function useWhisperRecorder(
   };
 
   const stopRecording = useCallback(() => {
+    setIsRecording(false);
     const recorder = mediaRecorderRef.current;
     if (recorder && recorder.state !== "inactive") {
       recorder.stop();
     }
-    setIsRecording(false);
     cleanupAudioGraph();
   }, []);
 
   const startSilenceDetection = useCallback(
-    (analyser: AnalyserNode) => {
+    (stream: MediaStream) => {
+      const audioCtx = new AudioContext();
+      const analyser = audioCtx.createAnalyser();
+      const source = audioCtx.createMediaStreamSource(stream);
+
+      analyser.fftSize = 2048;
+      source.connect(analyser);
+
+      audioContextRef.current = audioCtx;
+      analyserRef.current = analyser;
+      sourceRef.current = source;
+
       const data = new Uint8Array(analyser.frequencyBinCount);
-      lastNonSilentRef.current = performance.now();
+      const SILENCE_THRESHOLD = 0.03;
+      const SILENCE_DURATION_MS = 2000;
 
-      const loop = () => {
-        const analyserNode = analyserRef.current;
-        const recorder = mediaRecorderRef.current;
+      const loop = (time: number) => {
+        if (!analyserRef.current || !isRecording) return;
 
-        // If recorder is gone or stopped, bail
-        if (!analyserNode || !recorder || recorder.state === "inactive") {
-          return;
-        }
+        analyserRef.current.getByteTimeDomainData(data);
 
-        analyserNode.getByteTimeDomainData(data);
-
-        // Simple RMS estimate
         let sum = 0;
         for (let i = 0; i < data.length; i++) {
           const v = (data[i] - 128) / 128;
           sum += v * v;
         }
         const rms = Math.sqrt(sum / data.length);
-        const now = performance.now();
 
         if (rms > SILENCE_THRESHOLD) {
-          lastNonSilentRef.current = now;
-        } else if (now - lastNonSilentRef.current >= SILENCE_DURATION_MS) {
-          // enough silence → auto-stop
+          lastNonSilentRef.current = performance.now();
+        } else if (
+          performance.now() - lastNonSilentRef.current >
+          SILENCE_DURATION_MS
+        ) {
           stopRecording();
           return;
         }
@@ -85,54 +88,45 @@ export function useWhisperRecorder(
         requestAnimationFrame(loop);
       };
 
+      lastNonSilentRef.current = performance.now();
       requestAnimationFrame(loop);
     },
-    [stopRecording]
+    [isRecording, stopRecording]
   );
 
   const startRecording = useCallback(async () => {
-    if (isRecording || isTranscribing) return;
+    if (isRecording) {
+      stopRecording();
+      return;
+    }
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
       const recorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
       mediaRecorderRef.current = recorder;
-      chunksRef.current = [];
+      audioChunksRef.current = [];
       setIsRecording(true);
 
-      // Build audio graph for silence detection
-      const AudioCtx =
-        window.AudioContext || (window as typeof window & { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-      const audioCtx = new AudioCtx();
-      const source = audioCtx.createMediaStreamSource(stream);
-      const analyser = audioCtx.createAnalyser();
-      analyser.fftSize = 2048;
-
-      source.connect(analyser);
-      audioContextRef.current = audioCtx;
-      analyserRef.current = analyser;
-      sourceRef.current = source;
-
-      startSilenceDetection(analyser);
-
       recorder.ondataavailable = (e: BlobEvent) => {
-        if (e.data && e.data.size > 0) {
-          chunksRef.current.push(e.data);
+        if (e.data.size > 0) {
+          audioChunksRef.current.push(e.data);
         }
       };
 
       recorder.onstop = async () => {
-        // stop mic
-        stream.getTracks().forEach((t: MediaStreamTrack) => t.stop());
+        stream.getTracks().forEach((t) => t.stop());
         cleanupAudioGraph();
 
-        const blob = new Blob(chunksRef.current, { type: "audio/webm" });
-        chunksRef.current = [];
+        const blob = new Blob(audioChunksRef.current, {
+          type: "audio/webm",
+        });
+        audioChunksRef.current = [];
+
         if (!blob.size) return;
 
-        setIsTranscribing(true);
         try {
+          setIsTranscribing(true);
           const formData = new FormData();
           formData.append("file", blob, "audio.webm");
 
@@ -141,16 +135,18 @@ export function useWhisperRecorder(
             body: formData,
           });
 
+          const json = (await res.json()) as { text?: string; error?: string };
+          console.log("Whisper JSON:", json);
+
           if (!res.ok) {
-            console.error("Whisper error:", await res.text());
+            console.error("Whisper error:", json);
             return;
           }
 
-          const json = (await res.json()) as { text?: string };
-          if (json.text) {
+          if (json.text && json.text.trim().length > 0) {
             onTranscription(json.text);
           }
-        } catch (err: unknown) {
+        } catch (err) {
           console.error("Error transcribing audio:", err);
         } finally {
           setIsTranscribing(false);
@@ -158,12 +154,12 @@ export function useWhisperRecorder(
       };
 
       recorder.start();
-    } catch (err: unknown) {
+      startSilenceDetection(stream);
+    } catch (err) {
       console.error("Mic permission or init error:", err);
       setIsRecording(false);
-      cleanupAudioGraph();
     }
-  }, [isRecording, isTranscribing, onTranscription, startSilenceDetection]);
+  }, [isRecording, stopRecording, startSilenceDetection, onTranscription]);
 
   return {
     isRecording,
