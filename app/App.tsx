@@ -20,34 +20,56 @@ export default function App() {
     }
   }, []);
 
-  // Whisper hook: speak & send
-  const { isRecording, isTranscribing, startRecording, stopRecording } =
-    useWhisperRecorder((text) => {
-      // Match the beginning of your placeholder so minor changes don't break it
-      const textarea = document.querySelector(
-        'textarea[placeholder^="Type or write your question here"]'
-      ) as HTMLTextAreaElement | null;
+  const sendIntoChatKit = useCallback((text: string) => {
+    // Scope the search to the ChatKit root container so
+    // we don't pick up random WP textareas
+    const root = document.getElementById("rcam-chat-root");
 
-      if (!textarea) {
-        console.warn("ChatKit textarea not found");
-        return;
-      }
+    if (!root) {
+      console.warn("ChatKit root not found");
+      return;
+    }
 
-      textarea.value = text;
-      textarea.dispatchEvent(new Event("input", { bubbles: true }));
+    // Try a few sensible selectors
+    const candidate =
+      (root.querySelector(
+        'textarea[placeholder*="Type or write your question here"]'
+      ) as HTMLTextAreaElement | null) ||
+      (root.querySelector(
+        'textarea[placeholder*="Ask anything"]'
+      ) as HTMLTextAreaElement | null) ||
+      (root.querySelector("textarea") as HTMLTextAreaElement | null);
 
-      // Fire Enter key to submit
-      const enterEvent = new KeyboardEvent("keydown", {
-        key: "Enter",
-        code: "Enter",
-        bubbles: true,
-      });
-      textarea.dispatchEvent(enterEvent);
+    if (!candidate) {
+      // If the user clicks the mic before ChatKit finishes mounting,
+      // we just bail out quietly.
+      console.warn("ChatKit textarea not found");
+      return;
+    }
+
+    const textarea = candidate;
+
+    textarea.value = text;
+    textarea.dispatchEvent(new Event("input", { bubbles: true }));
+
+    const enterEvent = new KeyboardEvent("keydown", {
+      key: "Enter",
+      code: "Enter",
+      bubbles: true,
     });
+
+    textarea.dispatchEvent(enterEvent);
+  }, []);
+
+  const { isRecording, isTranscribing, startRecording, stopRecording } =
+    useWhisperRecorder(sendIntoChatKit);
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-end bg-slate-100 dark:bg-slate-950">
-      <div className="mx-auto w-full max-w-5xl relative">
+      <div
+        id="rcam-chat-root"
+        className="mx-auto w-full max-w-5xl relative"
+      >
         <ChatKitPanel
           theme={scheme}
           onWidgetAction={handleWidgetAction}
@@ -55,7 +77,7 @@ export default function App() {
           onThemeRequest={setScheme}
         />
 
-        {/* Floating mic button inside the chat iframe UI */}
+        {/* Floating mic button */}
         <button
           type="button"
           onClick={isRecording ? stopRecording : startRecording}
